@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"text/tabwriter"
@@ -19,13 +18,13 @@ var usersCmd = &cobra.Command{
 		var result struct {
 			Users struct {
 				Nodes []struct {
-				ID        string `json:"id"`
-				Name      string `json:"name"`
-				Email     string `json:"email"`
-				Active    bool   `json:"active"`
-				Admin     bool   `json:"admin"`
-				Guest     bool   `json:"guest"`
-				LastSeen  *string `json:"lastSeen"`
+					ID       string  `json:"id"`
+					Name     string  `json:"name"`
+					Email    string  `json:"email"`
+					Active   bool    `json:"active"`
+					Admin    bool    `json:"admin"`
+					Guest    bool    `json:"guest"`
+					LastSeen *string `json:"lastSeen"`
 				} `json:"nodes"`
 			} `json:"users"`
 		}
@@ -34,15 +33,28 @@ var usersCmd = &cobra.Command{
 			return err
 		}
 
-		if rawJSON {
-			enc := json.NewEncoder(os.Stdout)
-			enc.SetIndent("", "  ")
-			return enc.Encode(result.Users.Nodes)
+		nodes := result.Users.Nodes
+
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(nodes)
+		case "id-only":
+			for _, u := range nodes {
+				fmt.Println(u.ID)
+			}
+			return nil
+		}
+
+		if optQuiet {
+			for _, u := range nodes {
+				fmt.Printf("%s\t%s\n", u.Name, u.Email)
+			}
+			return nil
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
 		fmt.Fprintln(w, "NAME\tEMAIL\tROLE\tACTIVE")
-		for _, u := range result.Users.Nodes {
+		for _, u := range nodes {
 			role := "member"
 			if u.Admin {
 				role = "admin"
@@ -62,6 +74,5 @@ var usersCmd = &cobra.Command{
 }
 
 func init() {
-	usersCmd.Flags().BoolVar(&rawJSON, "json", false, "output raw JSON")
 	rootCmd.AddCommand(usersCmd)
 }

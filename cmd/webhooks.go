@@ -17,14 +17,14 @@ var webhooksCmd = &cobra.Command{
 		var result struct {
 			Webhooks struct {
 				Nodes []struct {
-				ID        string `json:"id"`
-				URL       string `json:"url"`
-				Team      *struct {
-					Key  string `json:"key"`
-					Name string `json:"name"`
-				} `json:"team"`
-				Enabled   bool   `json:"enabled"`
-				CreatedAt string `json:"createdAt"`
+					ID   string `json:"id"`
+					URL  string `json:"url"`
+					Team *struct {
+						Key  string `json:"key"`
+						Name string `json:"name"`
+					} `json:"team"`
+					Enabled   bool   `json:"enabled"`
+					CreatedAt string `json:"createdAt"`
 				} `json:"nodes"`
 			} `json:"webhooks"`
 		}
@@ -33,26 +33,39 @@ var webhooksCmd = &cobra.Command{
 			return err
 		}
 
-		if len(result.Webhooks.Nodes) == 0 {
+		nodes := result.Webhooks.Nodes
+		if len(nodes) == 0 {
+			if effectiveFormat() == "json" {
+				return writeJSON([]any{})
+			}
 			fmt.Println("No webhooks found.")
 			return nil
 		}
 
-		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 2, 2, ' ', 0)
-		fmt.Fprintln(w, "ID\tURL\tTEAM\tACTIVE")
-		for _, wh := range result.Webhooks.Nodes {
-			team := "-"
-			if wh.Team != nil {
-				team = wh.Team.Key
+		return outputListItems(toAnySlice(nodes), func(item any) string {
+			if n, ok := item.(struct {
+				ID  string `json:"id"`
+				URL string `json:"url"`
+			}); ok {
+				return n.ID + "\t" + n.URL
 			}
-			active := "no"
-			if wh.Enabled {
-				active = "yes"
+			return ""
+		}, []string{"id", "url", "team.key", "enabled"}, func() {
+			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 2, 2, ' ', 0)
+			fmt.Fprintln(w, "ID\tURL\tTEAM\tACTIVE")
+			for _, wh := range nodes {
+				team := "-"
+				if wh.Team != nil {
+					team = wh.Team.Key
+				}
+				active := "no"
+				if wh.Enabled {
+					active = "yes"
+				}
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", wh.ID, wh.URL, team, active)
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", wh.ID, wh.URL, team, active)
-		}
-		w.Flush()
-		return nil
+			w.Flush()
+		})
 	},
 }
 
@@ -96,6 +109,19 @@ var whCreateCmd = &cobra.Command{
 		}
 
 		wh := result.WebhookCreate.Webhook
+
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(wh)
+		case "id-only":
+			fmt.Println(wh.ID)
+			return nil
+		}
+		if optQuiet {
+			fmt.Println(wh.ID)
+			return nil
+		}
+
 		fmt.Printf("Created webhook: %s\n", wh.ID)
 		fmt.Printf("URL: %s\n", wh.URL)
 		if wh.Secret != "" {
@@ -110,7 +136,8 @@ var whDeleteCmd = &cobra.Command{
 	Short: "Delete a webhook",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		q := fmt.Sprintf(`mutation { webhookDelete(id: "%s") { success } }`, args[0])
+		id := args[0]
+		q := fmt.Sprintf(`mutation { webhookDelete(id: "%s") { success } }`, id)
 
 		var result struct {
 			WebhookDelete struct {
@@ -121,9 +148,23 @@ var whDeleteCmd = &cobra.Command{
 		if err := api.Query(q, &result); err != nil {
 			return err
 		}
-		if result.WebhookDelete.Success {
-			fmt.Printf("Deleted webhook: %s\n", args[0])
+		if !result.WebhookDelete.Success {
+			return fmt.Errorf("delete failed")
 		}
+
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(map[string]any{"success": true, "id": id})
+		case "id-only":
+			fmt.Println(id)
+			return nil
+		}
+		if optQuiet {
+			fmt.Println(id)
+			return nil
+		}
+
+		fmt.Printf("Deleted webhook: %s\n", id)
 		return nil
 	},
 }

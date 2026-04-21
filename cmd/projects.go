@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	projTeamFilter string
+	projTeamFilter  string
 	projStatusFilter string
 )
 
@@ -35,19 +35,19 @@ var projectsCmd = &cobra.Command{
 		var result struct {
 			Projects struct {
 				Nodes []struct {
-				ID          string `json:"id"`
-				Name        string `json:"name"`
-				SlugID      string `json:"slugId"`
-				Description string `json:"description"`
-				State       string `json:"state"`
-				Status      *struct {
-					Name  string `json:"name"`
-					Color string `json:"color"`
-				} `json:"status"`
-			Team       *struct {
-				Key  string `json:"key"`
-				Name string `json:"name"`
-			} `json:"lead"`
+					ID          string  `json:"id"`
+					Name        string  `json:"name"`
+					SlugID      string  `json:"slugId"`
+					Description string  `json:"description"`
+					State       string  `json:"state"`
+					Status      *struct {
+						Name  string `json:"name"`
+						Color string `json:"color"`
+					} `json:"status"`
+					Lead *struct {
+						Name  string `json:"name"`
+						Email string `json:"email"`
+					} `json:"lead"`
 					StartDate  string  `json:"startDate"`
 					TargetDate string  `json:"targetDate"`
 					Progress   float64 `json:"progress"`
@@ -60,33 +60,46 @@ var projectsCmd = &cobra.Command{
 			return err
 		}
 
-		if len(result.Projects.Nodes) == 0 {
+		nodes := result.Projects.Nodes
+		if len(nodes) == 0 {
+			if effectiveFormat() == "json" {
+				return writeJSON([]any{})
+			}
 			fmt.Println("No projects found.")
 			return nil
 		}
 
-		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 2, 2, ' ', 0)
-		fmt.Fprintln(w, "SLUG\tNAME\tSTATUS\tLEAD\tPROGRESS")
-		for _, p := range result.Projects.Nodes {
-			status := p.State
-			if p.Status != nil {
-				status = p.Status.Name
+		return outputListItems(toAnySlice(nodes), func(item any) string {
+			if n, ok := item.(struct {
+				SlugID string `json:"slugId"`
+				Name   string `json:"name"`
+			}); ok {
+				return n.SlugID + "\t" + n.Name
 			}
-			lead := "-"
-			if p.Team != nil {
-				lead = p.Team.Name
+			return ""
+		}, []string{"slugId", "name", "status.name", "progress"}, func() {
+			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 2, 2, ' ', 0)
+			fmt.Fprintln(w, "SLUG\tNAME\tSTATUS\tLEAD\tPROGRESS")
+			for _, p := range nodes {
+				status := p.State
+				if p.Status != nil {
+					status = p.Status.Name
+				}
+				lead := "-"
+				if p.Lead != nil {
+					lead = p.Lead.Name
+				}
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%.0f%%\n", p.SlugID, p.Name, status, lead, p.Progress*100)
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%.0f%%\n", p.SlugID, p.Name, status, lead, p.Progress*100)
-		}
-		w.Flush()
-		return nil
+			w.Flush()
+		})
 	},
 }
 
 var (
-	projCreateName  string
-	projCreateDesc  string
-	projCreateTeam  string
+	projCreateName   string
+	projCreateDesc   string
+	projCreateTeam   string
 	projCreateStatus string
 )
 
@@ -114,12 +127,12 @@ var projectCreateCmd = &cobra.Command{
 
 		var result struct {
 			ProjectCreate struct {
-			Project struct {
-				ID     string `json:"id"`
-				Name   string `json:"name"`
-				SlugID string `json:"slugId"`
-				URL    string `json:"url"`
-			} `json:"project"`
+				Project struct {
+					ID     string `json:"id"`
+					Name   string `json:"name"`
+					SlugID string `json:"slugId"`
+					URL    string `json:"url"`
+				} `json:"project"`
 			} `json:"projectCreate"`
 		}
 
@@ -128,6 +141,19 @@ var projectCreateCmd = &cobra.Command{
 		}
 
 		p := result.ProjectCreate.Project
+
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(p)
+		case "id-only":
+			fmt.Println(p.SlugID)
+			return nil
+		}
+		if optQuiet {
+			fmt.Printf("%s\t%s\n", p.SlugID, p.URL)
+			return nil
+		}
+
 		fmt.Printf("Created: %s - %s\n", p.SlugID, p.Name)
 		fmt.Printf("URL: %s\n", p.URL)
 		return nil
@@ -159,18 +185,33 @@ var projectUpdateCmd = &cobra.Command{
 		var result struct {
 			ProjectUpdate struct {
 				Success bool `json:"success"`
-			Project struct {
-				ID     string `json:"id"`
-				Name   string `json:"name"`
-				SlugID string `json:"slugId"`
-			} `json:"project"`
-		} `json:"projectUpdate"`
-	}
+				Project struct {
+					ID     string `json:"id"`
+					Name   string `json:"name"`
+					SlugID string `json:"slugId"`
+				} `json:"project"`
+			} `json:"projectUpdate"`
+		}
 
-	if err := api.Query(q, &result); err != nil {
-		return err
-	}
-	fmt.Printf("Updated: %s - %s\n", result.ProjectUpdate.Project.SlugID, result.ProjectUpdate.Project.Name)
+		if err := api.Query(q, &result); err != nil {
+			return err
+		}
+
+		p := result.ProjectUpdate.Project
+
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(p)
+		case "id-only":
+			fmt.Println(p.SlugID)
+			return nil
+		}
+		if optQuiet {
+			fmt.Println(p.SlugID)
+			return nil
+		}
+
+		fmt.Printf("Updated: %s - %s\n", p.SlugID, p.Name)
 		return nil
 	},
 }

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -17,7 +16,6 @@ var (
 	statusFilter   string
 	assigneeFilter string
 	issueLimit     int
-	rawJSON        bool
 )
 
 var listCmd = &cobra.Command{
@@ -80,33 +78,48 @@ var listCmd = &cobra.Command{
 			return err
 		}
 
-		if rawJSON {
-			enc := json.NewEncoder(os.Stdout)
-			enc.SetIndent("", "  ")
-			return enc.Encode(result.Issues.Nodes)
-		}
-
-		if len(result.Issues.Nodes) == 0 {
+		nodes := result.Issues.Nodes
+		if len(nodes) == 0 {
+			if effectiveFormat() == "json" {
+				return writeJSON([]any{})
+			}
 			fmt.Println("No issues found.")
 			return nil
 		}
 
-		w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
-		fmt.Fprintln(w, "ID\tTITLE\tSTATUS\tASSIGNEE\tPRIORITY")
-		for _, i := range result.Issues.Nodes {
-			state := "-"
-			if i.State != nil {
-				state = i.State.Name
+		return outputListItems(toAnySlice(nodes), func(item any) string {
+			if n, ok := item.(struct {
+				Identifier string `json:"identifier"`
+				Title      string `json:"title"`
+			}); ok {
+				return n.Identifier + "\t" + n.Title
 			}
-			assignee := "-"
-			if i.Assignee != nil {
-				assignee = i.Assignee.Name
+			return ""
+		}, []string{"identifier", "title", "state.name", "assignee.name", "priority"}, func() {
+			w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
+			fmt.Fprintln(w, "ID\tTITLE\tSTATUS\tASSIGNEE\tPRIORITY")
+			for _, i := range nodes {
+				state := "-"
+				if i.State != nil {
+					state = i.State.Name
+				}
+				assignee := "-"
+				if i.Assignee != nil {
+					assignee = i.Assignee.Name
+				}
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", i.Identifier, i.Title, state, assignee, priorityLabel(i.Priority))
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", i.Identifier, i.Title, state, assignee, priorityLabel(i.Priority))
-		}
-		w.Flush()
-		return nil
+			w.Flush()
+		})
 	},
+}
+
+func toAnySlice[T any](s []T) []any {
+	r := make([]any, len(s))
+	for i, v := range s {
+		r[i] = v
+	}
+	return r
 }
 
 func priorityLabel(p int) string {
@@ -133,5 +146,5 @@ func init() {
 	listCmd.Flags().StringVarP(&statusFilter, "status", "S", "", "filter by status name")
 	listCmd.Flags().StringVarP(&assigneeFilter, "assignee", "a", "", "filter by assignee name")
 	listCmd.Flags().IntVarP(&issueLimit, "limit", "n", 20, "max results")
-	listCmd.Flags().BoolVar(&rawJSON, "json", false, "output raw JSON")
+	listCmd.Flags().StringVar(&optFields, "fields", "", "comma-separated fields (e.g. identifier,title,state.name)")
 }

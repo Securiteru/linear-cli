@@ -26,9 +26,23 @@ var deleteCmd = &cobra.Command{
 		if err := api.Query(q, &result); err != nil {
 			return err
 		}
-		if result.IssueDelete.Success {
-			fmt.Printf("Deleted: %s\n", id)
+		if !result.IssueDelete.Success {
+			return fmt.Errorf("delete failed")
 		}
+
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(map[string]any{"success": true, "id": id})
+		case "id-only":
+			fmt.Println(id)
+			return nil
+		}
+		if optQuiet {
+			fmt.Println(id)
+			return nil
+		}
+
+		fmt.Printf("Deleted: %s\n", id)
 		return nil
 	},
 }
@@ -50,9 +64,23 @@ var archiveCmd = &cobra.Command{
 		if err := api.Query(q, &result); err != nil {
 			return err
 		}
-		if result.IssueArchive.Success {
-			fmt.Printf("Archived: %s\n", id)
+		if !result.IssueArchive.Success {
+			return fmt.Errorf("archive failed")
 		}
+
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(map[string]any{"success": true, "id": id})
+		case "id-only":
+			fmt.Println(id)
+			return nil
+		}
+		if optQuiet {
+			fmt.Println(id)
+			return nil
+		}
+
+		fmt.Printf("Archived: %s\n", id)
 		return nil
 	},
 }
@@ -74,9 +102,23 @@ var unarchiveCmd = &cobra.Command{
 		if err := api.Query(q, &result); err != nil {
 			return err
 		}
-		if result.IssueUnarchive.Success {
-			fmt.Printf("Unarchived: %s\n", id)
+		if !result.IssueUnarchive.Success {
+			return fmt.Errorf("unarchive failed")
 		}
+
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(map[string]any{"success": true, "id": id})
+		case "id-only":
+			fmt.Println(id)
+			return nil
+		}
+		if optQuiet {
+			fmt.Println(id)
+			return nil
+		}
+
+		fmt.Printf("Unarchived: %s\n", id)
 		return nil
 	},
 }

@@ -22,6 +22,19 @@ var meCmd = &cobra.Command{
 		if err := api.Query(q, &result); err != nil {
 			return err
 		}
+
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(result.Viewer)
+		case "id-only":
+			fmt.Println(result.Viewer.ID)
+			return nil
+		}
+		if optQuiet {
+			fmt.Printf("%s\t%s\n", result.Viewer.Name, result.Viewer.Email)
+			return nil
+		}
+
 		fmt.Printf("%s <%s>\n", result.Viewer.Name, result.Viewer.Email)
 		fmt.Printf("ID: %s\n", result.Viewer.ID)
 		return nil

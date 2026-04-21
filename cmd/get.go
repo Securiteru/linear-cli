@@ -51,6 +51,32 @@ var getCmd = &cobra.Command{
 		}
 
 		issue := result.Issue
+
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(issue)
+		case "id-only":
+			fmt.Println(issue.Identifier)
+			return nil
+		}
+
+		if optFields != "" {
+			fields := parseFields(optFields)
+			m := toMap(issue)
+			tsvPrint(fields...)
+			row := make([]string, len(fields))
+			for i, f := range fields {
+				row[i] = fieldStr(getField(m, f))
+			}
+			tsvPrint(row...)
+			return nil
+		}
+
+		if optQuiet {
+			fmt.Printf("%s\t%s\n", issue.Identifier, issue.URL)
+			return nil
+		}
+
 		fmt.Printf("%s - %s\n", issue.Identifier, issue.Title)
 		fmt.Printf("URL: %s\n", issue.URL)
 		if issue.Team != nil {
@@ -88,4 +114,5 @@ var getCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(getCmd)
+	getCmd.Flags().StringVar(&optFields, "fields", "", "comma-separated fields (e.g. identifier,title,state.name)")
 }

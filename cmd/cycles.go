@@ -22,15 +22,15 @@ var cyclesCmd = &cobra.Command{
 		var result struct {
 			Cycles struct {
 				Nodes []struct {
-					ID                  string  `json:"id"`
-				Name              string  `json:"name"`
-				Number            int     `json:"number"`
-				Description       string  `json:"description"`
-				IsActive          bool    `json:"isActive"`
-				StartsAt          string  `json:"startsAt"`
-				EndsAt            string  `json:"endsAt"`
-				Progress          float64 `json:"progress"`
-					Team                *struct {
+					ID          string  `json:"id"`
+					Name        string  `json:"name"`
+					Number      int     `json:"number"`
+					Description string  `json:"description"`
+					IsActive    bool    `json:"isActive"`
+					StartsAt    string  `json:"startsAt"`
+					EndsAt      string  `json:"endsAt"`
+					Progress    float64 `json:"progress"`
+					Team        *struct {
 						Key string `json:"key"`
 					} `json:"team"`
 				} `json:"nodes"`
@@ -41,26 +41,39 @@ var cyclesCmd = &cobra.Command{
 			return err
 		}
 
-		if len(result.Cycles.Nodes) == 0 {
+		nodes := result.Cycles.Nodes
+		if len(nodes) == 0 {
+			if effectiveFormat() == "json" {
+				return writeJSON([]any{})
+			}
 			fmt.Println("No cycles found.")
 			return nil
 		}
 
-		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 2, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tTEAM\tACTIVE\tPROGRESS")
-		for _, c := range result.Cycles.Nodes {
-			team := "-"
-			if c.Team != nil {
-				team = c.Team.Key
+		return outputListItems(toAnySlice(nodes), func(item any) string {
+			if n, ok := item.(struct {
+				Name     string  `json:"name"`
+				Progress float64 `json:"progress"`
+			}); ok {
+				return n.Name
 			}
-			active := "no"
-			if c.IsActive {
-				active = "yes"
+			return ""
+		}, []string{"name", "team.key", "isActive", "progress"}, func() {
+			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 2, 2, ' ', 0)
+			fmt.Fprintln(w, "NAME\tTEAM\tACTIVE\tPROGRESS")
+			for _, c := range nodes {
+				team := "-"
+				if c.Team != nil {
+					team = c.Team.Key
+				}
+				active := "no"
+				if c.IsActive {
+					active = "yes"
+				}
+				fmt.Fprintf(w, "%s\t%s\t%s\t%.0f%%\n", c.Name, team, active, c.Progress*100)
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%.0f%%\n", c.Name, team, active, c.Progress*100)
-		}
-		w.Flush()
-		return nil
+			w.Flush()
+		})
 	},
 }
 
@@ -117,6 +130,19 @@ var cycleCreateCmd = &cobra.Command{
 		}
 
 		c := result.CycleCreate.Cycle
+
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(c)
+		case "id-only":
+			fmt.Println(c.ID)
+			return nil
+		}
+		if optQuiet {
+			fmt.Printf("%s\t%s\n", c.Name, c.ID)
+			return nil
+		}
+
 		fmt.Printf("Created cycle: %s (%s)\n", c.Name, c.ID)
 		return nil
 	},

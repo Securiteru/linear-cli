@@ -1,135 +1,107 @@
 # linear-cli
 
-Fast, native Go CLI for the Linear issue tracker via GraphQL. Zero dependencies beyond cobra -- single static binary, no runtime, no Node, no Python.
+[![Go Version](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)](https://go.dev)
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/Securiteru/linear-cli?include_prereleases)](https://github.com/Securiteru/linear-cli/releases)
+[![Zero Dependencies](https://img.shields.io/badge/deps-zero-success)](https://github.com/Securiteru/linear-cli)
 
-Built for agentic use: works with [psst](https://github.com/nicois/psst) for secret injection so API keys never leak into agent context.
+Linear issue tracking, from your terminal. One static binary, 35+ commands, zero runtime dependencies.
+
+```console
+$ linear list --team ADI --status "In Progress"
+ADI-12  Fix authentication redirect   In Progress  alice  High
+ADI-34  Add rate limiting              In Progress  bob    Medium
+ADI-37  Refactor GraphQL schema        In Progress  alice  High
+
+$ linear create --title "Fix login redirect" --team ENG --priority 2
+ENG-142 created
+```
+
+## Quick Start
+
+```sh
+go install github.com/securiter/linear-cli@latest
+
+export LINEAR_API_KEY=lin_api_...
+
+linear list --team YOUR_TEAM
+```
+
+Generate an API key at **Linear > Settings > API > Personal API keys**.
 
 ## Features
 
-**Issues** -- `list`, `get`, `create`, `update`, `delete`, `archive`, `unarchive`, `search`, `comment`, `comments`, `batch-create`
-
-**Projects** -- `projects` (list), `project-create`, `project-update`
-
-**Cycles** -- `cycles` (list), `cycle-create`
-
-**Initiatives** -- `initiatives` (list), `init-create`
-
-**Labels** -- `labels` (list), `label-create`, `label-delete`
-
-**Workflow States** -- `states` (list), `state-create`
-
-**Documents** -- `docs` (list), `doc-create`
-
-**Users & Auth** -- `users` (list), `me` (current user)
-
-**Webhooks** -- `webhooks` (list), `webhook-create`, `webhook-delete`
-
-**Notifications** -- `notifications` (list), `notif-archive`, `notif-read`
-
-**Meta** -- `teams` (list)
-
-That is 35 commands covering every major Linear entity.
+| Category        | Commands                                                            |
+| --------------- | ------------------------------------------------------------------- |
+| **Issues**      | `list` `get` `create` `update` `delete` `archive` `search` `comment` `batch-create` |
+| **Projects**    | `projects` `project-create` `project-update`                        |
+| **Cycles**      | `cycles` `cycle-create`                                             |
+| **Initiatives** | `initiatives` `init-create`                                         |
+| **Labels**      | `labels` `label-create` `label-delete`                              |
+| **States**      | `states` `state-create`                                             |
+| **Documents**   | `docs` `doc-create`                                                 |
+| **Webhooks**    | `webhooks` `webhook-create` `webhook-delete`                        |
+| **Notifications** | `notifications` `notif-archive` `notif-read`                      |
+| **Users**       | `users` `me`                                                        |
+| **Teams**       | `teams`                                                             |
 
 ## Installation
+
+**Go install**
 
 ```sh
 go install github.com/securiter/linear-cli@latest
 ```
 
-Or download a binary from [Releases](https://github.com/Securiteru/linear-cli/releases).
+**Pre-built binary**
 
-## Auth
-
-Export your Linear API key:
-
-```sh
-export LINEAR_API_KEY=lin_api_...
-```
-
-Generate one at **Linear > Settings > API > Personal API keys**.
-
-### With psst (recommended for agents)
-
-psst injects the key at exec time without exposing it to the agent's context:
-
-```sh
-psst --global LINEAR_API_KEY -- linear list --team ADI
-```
+Download from [Releases](https://github.com/Securiteru/linear-cli/releases).
 
 ## Usage
 
-### List issues with filters
+### Issues
 
 ```sh
 linear list --team ADI --status "In Progress" --assignee "Alice" --limit 50
 linear list -s "authentication bug" --team ENG
-```
-
-### Create an issue
-
-```sh
-linear create --title "Fix login redirect" --team ENG --priority 2 --desc "After OAuth..."
-```
-
-### Get full issue details
-
-```sh
 linear get ENG-142
-```
-
-### Update an issue
-
-```sh
 linear update ENG-142 --status "Done" --assignee "Bob" --priority 3
-linear update ENG-142 --title "New title" --due 2026-06-01T00:00:00Z
+linear update ENG-142 --due 2026-06-01T00:00:00Z
 linear update ENG-142 --clear-due
+linear delete ENG-142
+linear archive ENG-142
+linear unarchive ENG-142
 ```
 
-### Search
+### Search & Comments
 
 ```sh
 linear search "API rate limit" --limit 10
-```
-
-### Comments
-
-```sh
 linear comment ENG-142 "Fixed in commit abc123"
 linear comments ENG-142
 ```
 
-### Batch create from stdin
+### Batch Create (stdin JSON lines)
 
 ```sh
 echo '{"title":"Setup CI","priority":2}
 {"title":"Write tests","priority":3}' | linear batch-create --team ENG
 ```
 
-### JSON output
-
-Most list commands support `--json` for structured output:
+### Other Entities
 
 ```sh
-linear list --team ADI --json | jq '.[].title'
-linear users --json
-```
-
-### Other entities
-
-```sh
-linear teams
 linear projects --status "Planned"
 linear cycles --team ENG
 linear initiatives
 linear labels --team ENG
 linear states --team ENG
-linear docs --team ENG --json
-linear notifications --limit 50
+linear docs --team ENG
 linear webhooks
-linear me
+linear notifications --limit 50
 ```
 
-### Create/delete entities
+### Create & Delete
 
 ```sh
 linear project-create --name "Q3 Launch" --team ENG --desc "Ship v2"
@@ -141,23 +113,29 @@ linear doc-create --title "Architecture RFC" --team ENG --desc "Proposal for..."
 linear webhook-create --url https://example.com/webhook --team ENG
 ```
 
-### Delete/archive
+## Agentic Use
+
+Designed for AI agents. Works with [psst](https://github.com/nicois/psst) for secret injection -- the API key never enters the agent's context.
 
 ```sh
-linear delete ENG-142
-linear archive ENG-142
-linear unarchive ENG-142
-linear webhook-delete <webhook-id>
-linear label-delete <label-id>
+psst --global LINEAR_API_KEY -- linear list --team ADI --status "In Progress"
 ```
 
-### Notifications
+**JSON output** for structured consumption:
 
 ```sh
-linear notifications --limit 50
-linear notif-archive <notification-id>
-linear notif-read <notification-id>
+psst --global LINEAR_API_KEY -- linear list --team ADI --json | jq '.[].title'
+psst --global LINEAR_API_KEY -- linear users --json
+psst --global LINEAR_API_KEY -- linear get ENG-142 --json
 ```
+
+**Quiet mode** for scripts and pipelines:
+
+```sh
+psst --global LINEAR_API_KEY -- linear create --title "New bug" --team ENG -q
+```
+
+Returns only the issue identifier, no extra output.
 
 ## Development
 
@@ -168,19 +146,17 @@ go build -o linear .
 ./linear --help
 ```
 
-### Project structure
-
 ```
 main.go              entry point
 cmd/
-  root.go            root cobra command, auth check
+  root.go            root command, auth check
   issues.go          list, search, filter flags
-  create.go          issue create + helpers (resolveTeamID, escapeGraphQL)
-  get.go             issue get (full detail)
-  update.go          issue update (title, status, assignee, priority, labels, due)
+  create.go          issue create + helpers
+  get.go             issue detail
+  update.go          issue update
   delete.go          delete, archive, unarchive
   comment.go         add/list comments
-  batch.go           batch-create from stdin JSON lines
+  batch.go           batch-create from stdin
   teams.go           list teams
   labels.go          list/create/delete labels
   states.go          list/create workflow states

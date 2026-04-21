@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"text/tabwriter"
@@ -24,13 +23,13 @@ var docsCmd = &cobra.Command{
 		var result struct {
 			Documents struct {
 				Nodes []struct {
-					ID           string `json:"id"`
-					Title        string `json:"title"`
-					SlugID       string `json:"slugId"`
-					Content      string `json:"content"`
-					UpdatedAt    string `json:"updatedAt"`
-					CreatedAt    string `json:"createdAt"`
-					Project      *struct {
+					ID        string `json:"id"`
+					Title     string `json:"title"`
+					SlugID    string `json:"slugId"`
+					Content   string `json:"content"`
+					UpdatedAt string `json:"updatedAt"`
+					CreatedAt string `json:"createdAt"`
+					Project   *struct {
 						Name string `json:"name"`
 					} `json:"project"`
 				} `json:"nodes"`
@@ -41,32 +40,39 @@ var docsCmd = &cobra.Command{
 			return err
 		}
 
-		if rawJSON {
-			enc := json.NewEncoder(os.Stdout)
-			enc.SetIndent("", "  ")
-			return enc.Encode(result.Documents.Nodes)
-		}
-
-		if len(result.Documents.Nodes) == 0 {
+		nodes := result.Documents.Nodes
+		if len(nodes) == 0 {
+			if effectiveFormat() == "json" {
+				return writeJSON([]any{})
+			}
 			fmt.Println("No documents found.")
 			return nil
 		}
 
-		w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
-		fmt.Fprintln(w, "TITLE\tPROJECT\tUPDATED")
-		for _, d := range result.Documents.Nodes {
-			project := "-"
-			if d.Project != nil {
-				project = d.Project.Name
+		return outputListItems(toAnySlice(nodes), func(item any) string {
+			if n, ok := item.(struct {
+				Title  string `json:"title"`
+				SlugID string `json:"slugId"`
+			}); ok {
+				return n.SlugID + "\t" + n.Title
 			}
-			updated := d.CreatedAt[:10]
-			if d.UpdatedAt != "" {
-				updated = d.UpdatedAt[:10]
+			return ""
+		}, []string{"slugId", "title", "project.name"}, func() {
+			w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
+			fmt.Fprintln(w, "TITLE\tPROJECT\tUPDATED")
+			for _, d := range nodes {
+				project := "-"
+				if d.Project != nil {
+					project = d.Project.Name
+				}
+				updated := d.CreatedAt[:10]
+				if d.UpdatedAt != "" {
+					updated = d.UpdatedAt[:10]
+				}
+				fmt.Fprintf(w, "%s\t%s\t%s\n", d.Title, project, updated)
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\n", d.Title, project, updated)
-		}
-		w.Flush()
-		return nil
+			w.Flush()
+		})
 	},
 }
 
@@ -111,6 +117,19 @@ var docCreateCmd = &cobra.Command{
 		}
 
 		d := result.DocumentCreate.Document
+
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(d)
+		case "id-only":
+			fmt.Println(d.ID)
+			return nil
+		}
+		if optQuiet {
+			fmt.Printf("%s\t%s\n", d.Title, d.URL)
+			return nil
+		}
+
 		fmt.Printf("Created: %s\nURL: %s\n", d.Title, d.URL)
 		return nil
 	},
@@ -118,7 +137,6 @@ var docCreateCmd = &cobra.Command{
 
 func init() {
 	docsCmd.Flags().StringVarP(&docTeamFilter, "team", "t", "", "filter by team key")
-	docsCmd.Flags().BoolVar(&rawJSON, "json", false, "output raw JSON")
 
 	docCreateCmd.Flags().StringVarP(&docCreateTitle, "title", "n", "", "document title (required)")
 	docCreateCmd.Flags().StringVarP(&docCreateDesc, "desc", "d", "", "document content")

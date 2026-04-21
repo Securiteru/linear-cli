@@ -57,6 +57,19 @@ var createCmd = &cobra.Command{
 		}
 
 		issue := result.IssueCreate.Issue
+
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(issue)
+		case "id-only":
+			fmt.Println(issue.Identifier)
+			return nil
+		}
+		if optQuiet {
+			fmt.Printf("%s\t%s\n", issue.Identifier, issue.URL)
+			return nil
+		}
+
 		fmt.Printf("Created: %s - %s\n", issue.Identifier, issue.Title)
 		fmt.Printf("URL: %s\n", issue.URL)
 		return nil

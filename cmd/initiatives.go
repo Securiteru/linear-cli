@@ -19,17 +19,17 @@ var initiativesCmd = &cobra.Command{
 		var result struct {
 			Initiatives struct {
 				Nodes []struct {
-				ID          string `json:"id"`
-				Name        string `json:"name"`
-				Description string `json:"description"`
-				Status      string `json:"status"`
-				Health      string `json:"health"`
-				TargetDate  string `json:"targetDate"`
-				StartsAt    string `json:"startedAt"`
+					ID          string `json:"id"`
+					Name        string `json:"name"`
+					Description string `json:"description"`
+					Status      string `json:"status"`
+					Health      string `json:"health"`
+					TargetDate  string `json:"targetDate"`
+					StartsAt    string `json:"startedAt"`
 					Projects    *struct {
 						Nodes []struct {
-					Names  string `json:"name"`
-					SlugID string `json:"slugId"`
+							Name   string `json:"name"`
+							SlugID string `json:"slugId"`
 						} `json:"nodes"`
 					} `json:"projects"`
 				} `json:"nodes"`
@@ -40,30 +40,47 @@ var initiativesCmd = &cobra.Command{
 			return err
 		}
 
-		if len(result.Initiatives.Nodes) == 0 {
+		nodes := result.Initiatives.Nodes
+		if len(nodes) == 0 {
+			if effectiveFormat() == "json" {
+				return writeJSON([]any{})
+			}
 			fmt.Println("No initiatives found.")
 			return nil
 		}
 
-		w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tSTATUS\tHEALTH\tTARGET\tPROJECTS")
-		for _, i := range result.Initiatives.Nodes {
-			projects := "-"
-			if i.Projects != nil && len(i.Projects.Nodes) > 0 {
-				names := make([]string, len(i.Projects.Nodes))
-				for j, p := range i.Projects.Nodes {
-					names[j] = p.SlugID
+		return outputListItems(toAnySlice(nodes), func(item any) string {
+			if n, ok := item.(struct {
+				Name   string `json:"name"`
+				Status string `json:"status"`
+			}); ok {
+				return n.Name + "\t" + n.Status
+			}
+			return ""
+		}, []string{"name", "status", "health", "targetDate"}, func() {
+			w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
+			fmt.Fprintln(w, "NAME\tSTATUS\tHEALTH\tTARGET\tPROJECTS")
+			for _, i := range nodes {
+				projects := "-"
+				if i.Projects != nil && len(i.Projects.Nodes) > 0 {
+					names := make([]string, len(i.Projects.Nodes))
+					for j, p := range i.Projects.Nodes {
+						names[j] = p.SlugID
+					}
+					projects = strings.Join(names, ", ")
 				}
-				projects = strings.Join(names, ", ")
+				health := i.Health
+				if health == "" {
+					health = "-"
+				}
+				target := "-"
+				if len(i.TargetDate) >= 10 {
+					target = i.TargetDate[:10]
+				}
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", i.Name, i.Status, health, target, projects)
 			}
-			health := i.Health
-			if health == "" {
-				health = "-"
-			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", i.Name, i.Status, health, i.TargetDate[:10], projects)
-		}
-		w.Flush()
-		return nil
+			w.Flush()
+		})
 	},
 }
 
@@ -112,14 +129,26 @@ var initCreateCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("Created initiative: %s (%s)\n", result.InitiativeCreate.Initiative.Name, result.InitiativeCreate.Initiative.ID)
+		init := result.InitiativeCreate.Initiative
+
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(init)
+		case "id-only":
+			fmt.Println(init.ID)
+			return nil
+		}
+		if optQuiet {
+			fmt.Printf("%s\t%s\n", init.Name, init.ID)
+			return nil
+		}
+
+		fmt.Printf("Created initiative: %s (%s)\n", init.Name, init.ID)
 		return nil
 	},
 }
 
 func init() {
-	initiativesCmd.Flags().BoolVar(&rawJSON, "json", false, "output raw JSON")
-
 	initCreateCmd.Flags().StringVarP(&initName, "name", "n", "", "initiative name (required)")
 	initCreateCmd.Flags().StringVarP(&initDesc, "desc", "d", "", "description")
 	initCreateCmd.Flags().StringVarP(&initTeam, "team", "t", "", "team key")

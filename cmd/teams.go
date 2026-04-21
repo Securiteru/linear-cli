@@ -24,7 +24,27 @@ var teamsCmd = &cobra.Command{
 		if err := api.Query(q, &result); err != nil {
 			return err
 		}
-		for _, t := range result.Teams.Nodes {
+
+		nodes := result.Teams.Nodes
+
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(nodes)
+		case "id-only":
+			for _, t := range nodes {
+				fmt.Println(t.Key)
+			}
+			return nil
+		}
+
+		if optQuiet {
+			for _, t := range nodes {
+				fmt.Printf("%s\t%s\n", t.Key, t.Name)
+			}
+			return nil
+		}
+
+		for _, t := range nodes {
 			fmt.Printf("%s  %s  %s\n", t.Key, t.Name, t.ID)
 		}
 		return nil

@@ -2,6 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"strings"
+	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 	"github.com/securiter/linear-cli/api"
@@ -43,7 +46,21 @@ var commentCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("Comment added to %s at %s\n", id, result.CommentCreate.Comment.CreatedAt)
+		c := result.CommentCreate.Comment
+
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(c)
+		case "id-only":
+			fmt.Println(c.ID)
+			return nil
+		}
+		if optQuiet {
+			fmt.Printf("%s\t%s\n", id, c.ID)
+			return nil
+		}
+
+		fmt.Printf("Comment added to %s at %s\n", id, c.CreatedAt)
 		return nil
 	},
 }
@@ -60,13 +77,13 @@ var listCommentsCmd = &cobra.Command{
 			Issue *struct {
 				Comments struct {
 					Nodes []struct {
-						ID         string `json:"id"`
-						Body       string `json:"body"`
+						ID         string  `json:"id"`
+						Body       string  `json:"body"`
 						User       *struct {
 							Name string `json:"name"`
 						} `json:"user"`
-						CreatedAt string `json:"createdAt"`
-						UpdatedAt string `json:"updatedAt"`
+						CreatedAt  string  `json:"createdAt"`
+						UpdatedAt  string  `json:"updatedAt"`
 						ResolvedAt *string `json:"resolvedAt"`
 					} `json:"nodes"`
 				} `json:"comments"`
@@ -80,22 +97,59 @@ var listCommentsCmd = &cobra.Command{
 			return fmt.Errorf("issue %q not found", id)
 		}
 
-		if len(result.Issue.Comments.Nodes) == 0 {
+		nodes := result.Issue.Comments.Nodes
+
+		if len(nodes) == 0 {
+			if effectiveFormat() == "json" {
+				return writeJSON([]any{})
+			}
 			fmt.Println("No comments.")
 			return nil
 		}
 
-		for _, c := range result.Issue.Comments.Nodes {
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(nodes)
+		case "id-only":
+			for _, c := range nodes {
+				fmt.Println(c.ID)
+			}
+			return nil
+		}
+
+		if optQuiet {
+			for _, c := range nodes {
+				user := "unknown"
+				if c.User != nil {
+					user = c.User.Name
+				}
+				body := strings.ReplaceAll(c.Body, "\n", " ")
+				if len(body) > 80 {
+					body = body[:80] + "..."
+				}
+				fmt.Printf("%s\t%s\t%s\n", c.ID, user, body)
+			}
+			return nil
+		}
+
+		w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
+		fmt.Fprintln(w, "USER\tID\tRESOLVED\tDATE\tBODY")
+		for _, c := range nodes {
 			user := "unknown"
 			if c.User != nil {
 				user = c.User.Name
 			}
 			resolved := ""
 			if c.ResolvedAt != nil {
-				resolved = " [resolved]"
+				resolved = "yes"
 			}
-			fmt.Printf("--- %s (%s)%s %s ---\n%s\n\n", user, c.ID, resolved, c.CreatedAt[:10], c.Body)
+			body := strings.ReplaceAll(c.Body, "\n", " ")
+			if len(body) > 60 {
+				body = body[:60] + "..."
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", user, c.ID, resolved, c.CreatedAt[:10], body)
 		}
+		w.Flush()
 		return nil
 	},
 }

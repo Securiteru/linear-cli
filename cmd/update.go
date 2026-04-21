@@ -92,6 +92,19 @@ var updateCmd = &cobra.Command{
 		}
 
 		issue := result.IssueUpdate.Issue
+
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(issue)
+		case "id-only":
+			fmt.Println(issue.Identifier)
+			return nil
+		}
+		if optQuiet {
+			fmt.Println(issue.Identifier)
+			return nil
+		}
+
 		fmt.Printf("Updated: %s - %s\n", issue.Identifier, issue.Title)
 
 		if updateLabels != nil {

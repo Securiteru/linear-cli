@@ -76,8 +76,26 @@ Example:
 			return err
 		}
 
-		fmt.Printf("Created %d issues:\n", len(result.IssueBatchCreate.Issues))
-		for _, i := range result.IssueBatchCreate.Issues {
+		created := result.IssueBatchCreate.Issues
+
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(created)
+		case "id-only":
+			for _, i := range created {
+				fmt.Println(i.Identifier)
+			}
+			return nil
+		}
+		if optQuiet {
+			for _, i := range created {
+				fmt.Printf("%s\t%s\n", i.Identifier, i.Title)
+			}
+			return nil
+		}
+
+		fmt.Printf("Created %d issues:\n", len(created))
+		for _, i := range created {
 			fmt.Printf("  %s - %s\n", i.Identifier, i.Title)
 		}
 		return nil

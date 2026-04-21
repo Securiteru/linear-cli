@@ -34,22 +34,35 @@ var labelsCmd = &cobra.Command{
 			return err
 		}
 
-		if len(result.IssueLabels.Nodes) == 0 {
+		nodes := result.IssueLabels.Nodes
+		if len(nodes) == 0 {
+			if effectiveFormat() == "json" {
+				return writeJSON([]any{})
+			}
 			fmt.Println("No labels found.")
 			return nil
 		}
 
-		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 2, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tID\tCOLOR\tGROUP")
-		for _, l := range result.IssueLabels.Nodes {
-			group := ""
-			if l.IsGroup {
-				group = "yes"
+		return outputListItems(toAnySlice(nodes), func(item any) string {
+			if n, ok := item.(struct {
+				Name string `json:"name"`
+				ID   string `json:"id"`
+			}); ok {
+				return n.Name + "\t" + n.ID
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", l.Name, l.ID, l.Color, group)
-		}
-		w.Flush()
-		return nil
+			return ""
+		}, []string{"name", "id", "color"}, func() {
+			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 2, 2, ' ', 0)
+			fmt.Fprintln(w, "NAME\tID\tCOLOR\tGROUP")
+			for _, l := range nodes {
+				group := ""
+				if l.IsGroup {
+					group = "yes"
+				}
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", l.Name, l.ID, l.Color, group)
+			}
+			w.Flush()
+		})
 	},
 }
 
@@ -99,6 +112,19 @@ var labelCreateCmd = &cobra.Command{
 		}
 
 		l := result.IssueLabelCreate.IssueLabel
+
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(l)
+		case "id-only":
+			fmt.Println(l.ID)
+			return nil
+		}
+		if optQuiet {
+			fmt.Printf("%s\t%s\n", l.Name, l.ID)
+			return nil
+		}
+
 		fmt.Printf("Created label: %s (%s) color=%s\n", l.Name, l.ID, l.Color)
 		return nil
 	},
@@ -109,7 +135,8 @@ var labelDeleteCmd = &cobra.Command{
 	Short: "Delete an issue label",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		q := fmt.Sprintf(`mutation { issueLabelDelete(id: "%s") { success } }`, args[0])
+		id := args[0]
+		q := fmt.Sprintf(`mutation { issueLabelDelete(id: "%s") { success } }`, id)
 
 		var result struct {
 			IssueLabelDelete struct {
@@ -120,9 +147,23 @@ var labelDeleteCmd = &cobra.Command{
 		if err := api.Query(q, &result); err != nil {
 			return err
 		}
-		if result.IssueLabelDelete.Success {
-			fmt.Printf("Deleted label: %s\n", args[0])
+		if !result.IssueLabelDelete.Success {
+			return fmt.Errorf("delete failed")
 		}
+
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(map[string]any{"success": true, "id": id})
+		case "id-only":
+			fmt.Println(id)
+			return nil
+		}
+		if optQuiet {
+			fmt.Println(id)
+			return nil
+		}
+
+		fmt.Printf("Deleted label: %s\n", id)
 		return nil
 	},
 }

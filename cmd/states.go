@@ -38,22 +38,35 @@ var statesCmd = &cobra.Command{
 			return err
 		}
 
-		if len(result.WorkflowStates.Nodes) == 0 {
+		nodes := result.WorkflowStates.Nodes
+		if len(nodes) == 0 {
+			if effectiveFormat() == "json" {
+				return writeJSON([]any{})
+			}
 			fmt.Println("No states found.")
 			return nil
 		}
 
-		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 2, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tTYPE\tTEAM\tCOLOR\tID")
-		for _, s := range result.WorkflowStates.Nodes {
-			team := "-"
-			if s.Team != nil {
-				team = s.Team.Key
+		return outputListItems(toAnySlice(nodes), func(item any) string {
+			if n, ok := item.(struct {
+				Name string `json:"name"`
+				ID   string `json:"id"`
+			}); ok {
+				return n.Name + "\t" + n.ID
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", s.Name, s.Type, team, s.Color, s.ID)
-		}
-		w.Flush()
-		return nil
+			return ""
+		}, []string{"name", "type", "team.key", "id"}, func() {
+			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 2, 2, ' ', 0)
+			fmt.Fprintln(w, "NAME\tTYPE\tTEAM\tCOLOR\tID")
+			for _, s := range nodes {
+				team := "-"
+				if s.Team != nil {
+					team = s.Team.Key
+				}
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", s.Name, s.Type, team, s.Color, s.ID)
+			}
+			w.Flush()
+		})
 	},
 }
 
@@ -107,6 +120,19 @@ var stateCreateCmd = &cobra.Command{
 		}
 
 		s := result.WorkflowStateCreate.WorkflowState
+
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(s)
+		case "id-only":
+			fmt.Println(s.ID)
+			return nil
+		}
+		if optQuiet {
+			fmt.Printf("%s\t%s\n", s.Name, s.ID)
+			return nil
+		}
+
 		fmt.Printf("Created state: %s (%s) type=%s\n", s.Name, s.ID, s.Type)
 		return nil
 	},
