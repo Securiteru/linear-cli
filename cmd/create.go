@@ -119,6 +119,7 @@ func resolveTeamID(key string) (string, error) {
 }
 
 func init() {
+	rootCmd.AddCommand(createCmd)
 	createCmd.Flags().StringVarP(&createTitle, "title", "t", "", "issue title (required)")
 	createCmd.Flags().StringVarP(&createDesc, "desc", "d", "", "issue description (markdown)")
 	createCmd.Flags().StringVarP(&createTeamKey, "team", "T", "", "team key (e.g. ADI) (required)")

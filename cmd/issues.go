@@ -88,13 +88,8 @@ var listCmd = &cobra.Command{
 		}
 
 		return outputListItems(toAnySlice(nodes), func(item any) string {
-			if n, ok := item.(struct {
-				Identifier string `json:"identifier"`
-				Title      string `json:"title"`
-			}); ok {
-				return n.Identifier + "\t" + n.Title
-			}
-			return ""
+			m := toMap(item)
+			return fieldStr(m["identifier"]) + "\t" + fieldStr(m["title"])
 		}, []string{"identifier", "title", "state.name", "assignee.name", "priority"}, func() {
 			w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
 			fmt.Fprintln(w, "ID\tTITLE\tSTATUS\tASSIGNEE\tPRIORITY")

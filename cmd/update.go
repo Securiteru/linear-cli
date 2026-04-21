@@ -24,7 +24,7 @@ var updateCmd = &cobra.Command{
 	Short: "Update an issue",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id := args[0]
+		id := parseIssueIdentifier(args[0])
 
 		fields := []string{}
 		if updateTitle != "" {
@@ -40,14 +40,14 @@ var updateCmd = &cobra.Command{
 			fields = append(fields, "priority: null")
 		}
 		if updateStatus != "" {
-			stateID, err := resolveStateID(id, updateStatus)
+			stateID, _, err := resolveStateIDFuzzy(id, updateStatus)
 			if err != nil {
 				return err
 			}
 			fields = append(fields, fmt.Sprintf(`stateId: "%s"`, stateID))
 		}
 		if updateAssignee != "" {
-			assigneeID, err := resolveUserID(updateAssignee)
+			assigneeID, err := resolveAssigneeID(updateAssignee)
 			if err != nil {
 				return err
 			}
@@ -117,7 +117,7 @@ var updateCmd = &cobra.Command{
 	},
 }
 
-func resolveStateID(issueID, stateName string) (string, error) {
+func resolveStateIDFuzzy(issueID, stateName string) (string, string, error) {
 	q := fmt.Sprintf(`query { issue(id: "%s") { team { id } } }`, issueID)
 	var issueRes struct {
 		Issue *struct {
@@ -127,31 +127,23 @@ func resolveStateID(issueID, stateName string) (string, error) {
 		} `json:"issue"`
 	}
 	if err := api.Query(q, &issueRes); err != nil {
-		return "", err
+		return "", "", err
 	}
 	if issueRes.Issue == nil || issueRes.Issue.Team == nil {
-		return "", fmt.Errorf("could not resolve team for issue %s", issueID)
+		return "", "", fmt.Errorf("could not resolve team for issue %s", issueID)
 	}
 
-	q2 := fmt.Sprintf(`query { workflowStates(filter: { team: { id: { eq: "%s" } }, name: { eq: "%s" } }) { nodes { id name } } }`, issueRes.Issue.Team.ID, stateName)
-	var stateRes struct {
-		WorkflowStates struct {
-			Nodes []struct {
-				ID   string `json:"id"`
-				Name string `json:"name"`
-			} `json:"nodes"`
-		} `json:"workflowStates"`
+	states, err := fetchTeamStates(issueRes.Issue.Team.ID)
+	if err != nil {
+		return "", "", err
 	}
-	if err := api.Query(q2, &stateRes); err != nil {
-		return "", err
-	}
-	if len(stateRes.WorkflowStates.Nodes) == 0 {
-		return "", fmt.Errorf("status %q not found on team", stateName)
-	}
-	return stateRes.WorkflowStates.Nodes[0].ID, nil
+	return fuzzyMatchState(states, stateName)
 }
 
-func resolveUserID(name string) (string, error) {
+func resolveAssigneeID(name string) (string, error) {
+	if name == "me" {
+		return getViewerID()
+	}
 	q := fmt.Sprintf(`query { users(filter: { name: { eq: "%s" } }) { nodes { id name } } }`, name)
 	var res struct {
 		Users struct {
@@ -186,6 +178,7 @@ func updateIssueLabels(issueID string, labels []string) error {
 }
 
 func init() {
+	rootCmd.AddCommand(updateCmd)
 	updateCmd.Flags().StringVarP(&updateTitle, "title", "t", "", "new title")
 	updateCmd.Flags().StringVarP(&updateDesc, "desc", "d", "", "new description")
 	updateCmd.Flags().StringVarP(&updateStatus, "status", "S", "", "new status name (e.g. 'In Progress')")

@@ -11,39 +11,77 @@ import (
 
 var searchCmd = &cobra.Command{
 	Use:   "search [query]",
-	Short: "Full-text search issues",
-	Args:  cobra.ExactArgs(1),
+	Short: "Full-text search issues (no args = my issues)",
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		query := args[0]
 		limit := searchLimit
 		if limit <= 0 {
 			limit = 20
 		}
 
-		q := fmt.Sprintf(`query { searchIssues(term: "%s", first: %d) { nodes { id identifier title state { name } assignee { name } priority } } }`, escapeGraphQL(query), limit)
-
-		var result struct {
-			SearchIssues struct {
-				Nodes []struct {
-					ID         string `json:"id"`
-					Identifier string `json:"identifier"`
-					Title      string `json:"title"`
-					State      *struct {
-						Name string `json:"name"`
-					} `json:"state"`
-					Assignee *struct {
-						Name string `json:"name"`
-					} `json:"assignee"`
-					Priority int `json:"priority"`
-				} `json:"nodes"`
-			} `json:"searchIssues"`
+		var nodes []struct {
+			ID         string `json:"id"`
+			Identifier string `json:"identifier"`
+			Title      string `json:"title"`
+			State      *struct {
+				Name string `json:"name"`
+			} `json:"state"`
+			Assignee *struct {
+				Name string `json:"name"`
+			} `json:"assignee"`
+			Priority int `json:"priority"`
 		}
 
-		if err := api.Query(q, &result); err != nil {
-			return err
+		if len(args) == 0 {
+			viewerID, err := getViewerID()
+			if err != nil {
+				return err
+			}
+			q := fmt.Sprintf(`query { issues(filter: { assignee: { id: { eq: "%s" } } }, first: %d) { nodes { id identifier title state { name } assignee { name } priority } } }`, viewerID, limit)
+			var result struct {
+				Issues struct {
+					Nodes []struct {
+						ID         string `json:"id"`
+						Identifier string `json:"identifier"`
+						Title      string `json:"title"`
+						State      *struct {
+							Name string `json:"name"`
+						} `json:"state"`
+						Assignee *struct {
+							Name string `json:"name"`
+						} `json:"assignee"`
+						Priority int `json:"priority"`
+					} `json:"nodes"`
+				} `json:"issues"`
+			}
+			if err := api.Query(q, &result); err != nil {
+				return err
+			}
+			nodes = result.Issues.Nodes
+		} else {
+			query := args[0]
+			q := fmt.Sprintf(`query { searchIssues(term: "%s", first: %d) { nodes { id identifier title state { name } assignee { name } priority } } }`, escapeGraphQL(query), limit)
+			var result struct {
+				SearchIssues struct {
+					Nodes []struct {
+						ID         string `json:"id"`
+						Identifier string `json:"identifier"`
+						Title      string `json:"title"`
+						State      *struct {
+							Name string `json:"name"`
+						} `json:"state"`
+						Assignee *struct {
+							Name string `json:"name"`
+						} `json:"assignee"`
+						Priority int `json:"priority"`
+					} `json:"nodes"`
+				} `json:"searchIssues"`
+			}
+			if err := api.Query(q, &result); err != nil {
+				return err
+			}
+			nodes = result.SearchIssues.Nodes
 		}
-
-		nodes := result.SearchIssues.Nodes
 		if len(nodes) == 0 {
 			if effectiveFormat() == "json" {
 				return writeJSON([]any{})
@@ -53,13 +91,8 @@ var searchCmd = &cobra.Command{
 		}
 
 		return outputListItems(toAnySlice(nodes), func(item any) string {
-			if n, ok := item.(struct {
-				Identifier string `json:"identifier"`
-				Title      string `json:"title"`
-			}); ok {
-				return n.Identifier + "\t" + n.Title
-			}
-			return ""
+			m := toMap(item)
+			return fieldStr(m["identifier"]) + "\t" + fieldStr(m["title"])
 		}, []string{"identifier", "title", "state.name", "assignee.name", "priority"}, func() {
 			w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
 			fmt.Fprintln(w, "ID\tTITLE\tSTATUS\tASSIGNEE\tPRIORITY")

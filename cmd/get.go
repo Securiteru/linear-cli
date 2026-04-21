@@ -12,7 +12,7 @@ var getCmd = &cobra.Command{
 	Short: "Get issue details",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id := args[0]
+		id := parseIssueIdentifier(args[0])
 		q := fmt.Sprintf(`query { issue(id: "%s") { id identifier title description state { name } assignee { name } priority labels { nodes { name } } team { key name } url createdAt updatedAt } }`, id)
 
 		var result struct {

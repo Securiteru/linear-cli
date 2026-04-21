@@ -15,19 +15,16 @@ var commentBody string
 var commentCmd = &cobra.Command{
 	Use:   "comment [issue-id] [body]",
 	Short: "Add a comment to an issue",
-	Args:  cobra.MaximumNArgs(1),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		id := parseIssueIdentifier(args[0])
+
 		body := commentBody
-		if len(args) == 1 {
-			body = args[0]
+		if len(args) == 2 {
+			body = args[1]
 		}
 		if body == "" {
 			return fmt.Errorf("comment body is required (pass as arg or --body)")
-		}
-
-		id := args[0]
-		if len(args) == 0 {
-			return fmt.Errorf("issue-id is required")
 		}
 
 		q := fmt.Sprintf(`mutation { commentCreate(input: { issueId: "%s", body: "%s" }) { comment { id body createdAt } } }`, id, escapeGraphQL(body))
@@ -70,7 +67,7 @@ var listCommentsCmd = &cobra.Command{
 	Short: "List comments on an issue",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id := args[0]
+		id := parseIssueIdentifier(args[0])
 		q := fmt.Sprintf(`query { issue(id: "%s") { comments { nodes { id body user { name } createdAt updatedAt resolvedAt } } } }`, id)
 
 		var result struct {
