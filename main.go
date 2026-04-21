@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/securiter/linear-cli/cmd"
+	"github.com/Securiteru/linear-cli/cmd"
 )
 
 var version = "dev"

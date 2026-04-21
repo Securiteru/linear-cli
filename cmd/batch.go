@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/securiter/linear-cli/api"
+	"github.com/Securiteru/linear-cli/api"
 )
 
 var batchCmd = &cobra.Command{

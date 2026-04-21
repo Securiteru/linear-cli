@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"text/tabwriter"
 
-	"github.com/securiter/linear-cli/api"
+	"github.com/Securiteru/linear-cli/api"
 	"github.com/spf13/cobra"
 )
 
