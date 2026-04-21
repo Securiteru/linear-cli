@@ -196,19 +196,6 @@ api/
   client.go          GraphQL HTTP client
 ```
 
-## Comparison to streamlinear
-
-|                     | linear-cli | streamlinear |
-|---------------------|-----------|--------------|
-| Commands            | 35+       | 7 actions    |
-| Entities covered    | issues, projects, cycles, initiatives, labels, states, docs, webhooks, notifications, users | issues only |
-| Batch operations    | stdin JSON lines | no |
-| Binary              | native Go, zero runtime | Node.js |
-| Secret injection    | psst-compatible | N/A |
-| Install             | `go install` | npm |
-
-streamlinear has a polished interactive TUI. We focused on breadth of API coverage and agentic scriptability. A TUI is on the roadmap.
-
 ## License
 
 MIT
