@@ -44,6 +44,23 @@ func getViewerName() (string, error) {
 	return res.Viewer.Name, nil
 }
 
+func getViewerEmail() (string, error) {
+	q := `query { viewer { email } }`
+	var res struct {
+		Viewer struct {
+			Email string `json:"email"`
+		} `json:"viewer"`
+	}
+	if err := api.Query(q, &res); err != nil {
+		return "", err
+	}
+	return res.Viewer.Email, nil
+}
+
+func isMeAlias(input string) bool {
+	return strings.EqualFold(strings.TrimSpace(input), "me")
+}
+
 func fetchTeamStates(teamID string) ([]struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`

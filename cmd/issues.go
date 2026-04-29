@@ -6,8 +6,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/spf13/cobra"
 	"github.com/Securiteru/linear-cli/api"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -35,7 +35,15 @@ var listCmd = &cobra.Command{
 			filterParts = append(filterParts, fmt.Sprintf(`state: { name: { eq: "%s" } }`, statusFilter))
 		}
 		if assigneeFilter != "" {
-			filterParts = append(filterParts, fmt.Sprintf(`assignee: { name: { eq: "%s" } }`, assigneeFilter))
+			if isMeAlias(assigneeFilter) {
+				email, err := getViewerEmail()
+				if err != nil {
+					return err
+				}
+				filterParts = append(filterParts, fmt.Sprintf(`assignee: { email: { eq: "%s" } }`, escapeGraphQL(email)))
+			} else {
+				filterParts = append(filterParts, fmt.Sprintf(`assignee: { name: { eq: "%s" } }`, escapeGraphQL(assigneeFilter)))
+			}
 		}
 
 		filter := ""
@@ -139,7 +147,7 @@ func init() {
 	listCmd.Flags().StringVarP(&searchQuery, "search", "s", "", "search text")
 	listCmd.Flags().StringVarP(&teamFilter, "team", "t", "", "filter by team key (e.g. ADI)")
 	listCmd.Flags().StringVarP(&statusFilter, "status", "S", "", "filter by status name")
-	listCmd.Flags().StringVarP(&assigneeFilter, "assignee", "a", "", "filter by assignee name")
+	listCmd.Flags().StringVarP(&assigneeFilter, "assignee", "a", "", "filter by assignee name or 'me'")
 	listCmd.Flags().IntVarP(&issueLimit, "limit", "n", 20, "max results")
 	listCmd.Flags().StringVar(&optFields, "fields", "", "comma-separated fields (e.g. identifier,title,state.name)")
 }

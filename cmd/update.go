@@ -4,19 +4,19 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/Securiteru/linear-cli/api"
+	"github.com/spf13/cobra"
 )
 
 var (
-	updateTitle     string
-	updateDesc      string
-	updateStatus    string
-	updateAssignee  string
-	updatePriority  int
-	updateLabels    []string
-	updateDueDate   string
-	updateClearDue  bool
+	updateTitle    string
+	updateDesc     string
+	updateStatus   string
+	updateAssignee string
+	updatePriority int
+	updateLabels   []string
+	updateDueDate  string
+	updateClearDue bool
 )
 
 var updateCmd = &cobra.Command{
@@ -141,7 +141,7 @@ func resolveStateIDFuzzy(issueID, stateName string) (string, string, error) {
 }
 
 func resolveAssigneeID(name string) (string, error) {
-	if name == "me" {
+	if isMeAlias(name) {
 		return getViewerID()
 	}
 	q := fmt.Sprintf(`query { users(filter: { name: { eq: "%s" } }) { nodes { id name } } }`, name)
@@ -182,7 +182,7 @@ func init() {
 	updateCmd.Flags().StringVarP(&updateTitle, "title", "t", "", "new title")
 	updateCmd.Flags().StringVarP(&updateDesc, "desc", "d", "", "new description")
 	updateCmd.Flags().StringVarP(&updateStatus, "status", "S", "", "new status name (e.g. 'In Progress')")
-	updateCmd.Flags().StringVarP(&updateAssignee, "assignee", "a", "", "assign to user by name")
+	updateCmd.Flags().StringVarP(&updateAssignee, "assignee", "a", "", "assign to user by name or 'me'")
 	updateCmd.Flags().IntVarP(&updatePriority, "priority", "p", 0, "priority (1-4), -1 to clear")
 	updateCmd.Flags().StringSliceVar(&updateLabels, "labels", nil, "add labels by ID")
 	updateCmd.Flags().StringVar(&updateDueDate, "due", "", "due date (ISO 8601)")
