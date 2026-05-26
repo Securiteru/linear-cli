@@ -11,8 +11,10 @@ var (
 	createTitle       string
 	createDesc        string
 	createTeamKey     string
+	createProject     string
 	createPriority    int
 	createStatusLabel string
+	createAssignee    string
 )
 
 var createCmd = &cobra.Command{
@@ -37,6 +39,20 @@ var createCmd = &cobra.Command{
 		}
 		if createPriority > 0 && createPriority <= 4 {
 			inputFields += fmt.Sprintf(", priority: %d", createPriority)
+		}
+		if createProject != "" {
+			projectID, err := resolveProjectID(createProject)
+			if err != nil {
+				return err
+			}
+			inputFields += fmt.Sprintf(`, projectId: "%s"`, projectID)
+		}
+		if createAssignee != "" {
+			assigneeID, err := resolveAssigneeID(createAssignee)
+			if err != nil {
+				return err
+			}
+			inputFields += fmt.Sprintf(`, assigneeId: "%s"`, assigneeID)
 		}
 
 		q := fmt.Sprintf(`mutation { issueCreate(input: { %s }) { issue { id identifier url title } } }`, inputFields)
@@ -123,6 +139,8 @@ func init() {
 	createCmd.Flags().StringVarP(&createTitle, "title", "t", "", "issue title (required)")
 	createCmd.Flags().StringVarP(&createDesc, "desc", "d", "", "issue description (markdown)")
 	createCmd.Flags().StringVarP(&createTeamKey, "team", "T", "", "team key (e.g. ADI) (required)")
+	createCmd.Flags().StringVar(&createProject, "project", "", "project name or UUID")
+	createCmd.Flags().StringVarP(&createAssignee, "assignee", "a", "", "assign to user by name or 'me'")
 	createCmd.Flags().IntVarP(&createPriority, "priority", "p", 0, "priority (1=urgent 2=high 3=medium 4=low)")
 	createCmd.Flags().StringVar(&createStatusLabel, "status", "", "status name")
 }

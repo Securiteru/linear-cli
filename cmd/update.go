@@ -9,14 +9,16 @@ import (
 )
 
 var (
-	updateTitle    string
-	updateDesc     string
-	updateStatus   string
-	updateAssignee string
-	updatePriority int
-	updateLabels   []string
-	updateDueDate  string
-	updateClearDue bool
+	updateTitle        string
+	updateDesc         string
+	updateStatus       string
+	updateAssignee     string
+	updatePriority     int
+	updateLabels       []string
+	updateDueDate      string
+	updateClearDue     bool
+	updateProject      string
+	updateClearProject bool
 )
 
 var updateCmd = &cobra.Command{
@@ -58,9 +60,18 @@ var updateCmd = &cobra.Command{
 		} else if updateDueDate != "" {
 			fields = append(fields, fmt.Sprintf(`dueDate: "%s"`, updateDueDate))
 		}
+		if updateClearProject {
+			fields = append(fields, "projectId: null")
+		} else if updateProject != "" {
+			projectID, err := resolveProjectID(updateProject)
+			if err != nil {
+				return err
+			}
+			fields = append(fields, fmt.Sprintf(`projectId: "%s"`, projectID))
+		}
 
 		if len(fields) == 0 {
-			return fmt.Errorf("no updates specified (use --title, --desc, --status, --assignee, --priority)")
+			return fmt.Errorf("no updates specified (use --title, --desc, --status, --assignee, --priority, --project)")
 		}
 
 		q := fmt.Sprintf(`mutation { issueUpdate(id: "%s", input: { %s }) { success issue { id identifier title state { name } assignee { name } priority } } }`, id, strings.Join(fields, ", "))
@@ -187,4 +198,6 @@ func init() {
 	updateCmd.Flags().StringSliceVar(&updateLabels, "labels", nil, "add labels by ID")
 	updateCmd.Flags().StringVar(&updateDueDate, "due", "", "due date (ISO 8601)")
 	updateCmd.Flags().BoolVar(&updateClearDue, "clear-due", false, "clear due date")
+	updateCmd.Flags().StringVar(&updateProject, "project", "", "move to project (name or UUID)")
+	updateCmd.Flags().BoolVar(&updateClearProject, "clear-project", false, "remove from project")
 }
