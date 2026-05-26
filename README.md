@@ -120,16 +120,15 @@ Two auth modes:
 1. **Personal API key** — `export LINEAR_API_KEY=lin_api_...` (simple, full account access)
 2. **OAuth** — scoped, revocable per-integration, actions attributable to an OAuth app
 
-OAuth setup (one time):
+OAuth setup:
 
 ```sh
 # 1. Create an OAuth app at https://linear.app/settings/api/applications/new
 #    Redirect URL: http://localhost:8765/callback
-# 2. Configure the CLI:
-linear oauth setup            # paste client_id and client_secret
-linear oauth login            # opens browser, saves token to ~/.config/linear-cli/auth.json
+# 2. Authenticate:
+linear oauth login            # prompts for client_id/secret on first run, then opens browser
 linear oauth status           # verify
-linear oauth logout           # revoke locally
+linear oauth logout           # clear token locally
 ```
 
 If `LINEAR_API_KEY` is set, it takes precedence over the stored OAuth token.

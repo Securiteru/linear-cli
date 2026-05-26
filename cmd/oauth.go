@@ -98,66 +98,20 @@ func mergeEnvConfig(c *oauthConfig) {
 
 var oauthCmd = &cobra.Command{
 	Use:   "oauth",
-	Short: "OAuth authentication (login, logout, status, setup)",
+	Short: "OAuth authentication (login, logout, status)",
 	Long: `Authenticate with Linear via OAuth instead of a personal API key.
 
 OAuth tokens are scoped, can be revoked per-integration, and let agent
 activity be attributed to the OAuth app rather than your user. Stored at
 $XDG_CONFIG_HOME/linear-cli/auth.json (mode 0600).
 
-Setup steps (one time):
+First-time use:
   1. Create an OAuth app: https://linear.app/settings/api/applications/new
-  2. Set the redirect URL to http://localhost:8765/callback
-  3. Run: linear oauth setup     (paste client id + secret)
-  4. Run: linear oauth login     (opens browser)`,
+     - Redirect URL: http://localhost:8765/callback
+  2. Run: linear oauth login
+     (it prompts for client_id/secret on first run, then opens the browser)`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return oauthLoginCmd.RunE(cmd, args)
-	},
-}
-
-var oauthSetupCmd = &cobra.Command{
-	Use:   "setup",
-	Short: "Configure OAuth client id/secret",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		c, _ := loadOAuthConfig()
-		if c == nil {
-			c = &oauthConfig{}
-		}
-		mergeEnvConfig(c)
-
-		reader := bufio.NewReader(os.Stdin)
-		fmt.Print("Linear OAuth client_id: ")
-		id, _ := reader.ReadString('\n')
-		id = strings.TrimSpace(id)
-		if id != "" {
-			c.ClientID = id
-		}
-		fmt.Print("Linear OAuth client_secret: ")
-		secret, _ := reader.ReadString('\n')
-		secret = strings.TrimSpace(secret)
-		if secret != "" {
-			c.ClientSecret = secret
-		}
-		fmt.Printf("Redirect port [%d]: ", c.RedirectPort)
-		portStr, _ := reader.ReadString('\n')
-		portStr = strings.TrimSpace(portStr)
-		if portStr != "" {
-			var p int
-			if _, err := fmt.Sscanf(portStr, "%d", &p); err == nil && p > 0 {
-				c.RedirectPort = p
-			}
-		}
-
-		if c.ClientID == "" || c.ClientSecret == "" {
-			return fmt.Errorf("client_id and client_secret are required")
-		}
-		if err := saveOAuthConfig(c); err != nil {
-			return err
-		}
-		path, _ := oauthConfigPath()
-		fmt.Printf("Saved to %s\n", path)
-		fmt.Println("Next: linear oauth login")
-		return nil
 	},
 }
 
@@ -165,7 +119,7 @@ var oauthLoginScope string
 
 var oauthLoginCmd = &cobra.Command{
 	Use:   "login",
-	Short: "Run the OAuth browser flow and save the access token",
+	Short: "Authenticate with Linear (prompts for client credentials on first run)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c, _ := loadOAuthConfig()
 		if c == nil {
@@ -174,7 +128,26 @@ var oauthLoginCmd = &cobra.Command{
 		mergeEnvConfig(c)
 
 		if c.ClientID == "" || c.ClientSecret == "" {
-			return fmt.Errorf("OAuth client not configured. Run 'linear oauth setup' or set LINEAR_OAUTH_CLIENT_ID and LINEAR_OAUTH_CLIENT_SECRET")
+			fmt.Println("First-time setup. Create an OAuth app at:")
+			fmt.Println("  https://linear.app/settings/api/applications/new")
+			fmt.Printf("Redirect URL must be: http://localhost:%d/callback\n\n", c.RedirectPort)
+			reader := bufio.NewReader(os.Stdin)
+			if c.ClientID == "" {
+				fmt.Print("client_id: ")
+				v, _ := reader.ReadString('\n')
+				c.ClientID = strings.TrimSpace(v)
+			}
+			if c.ClientSecret == "" {
+				fmt.Print("client_secret: ")
+				v, _ := reader.ReadString('\n')
+				c.ClientSecret = strings.TrimSpace(v)
+			}
+			if c.ClientID == "" || c.ClientSecret == "" {
+				return fmt.Errorf("client_id and client_secret are required")
+			}
+			if err := saveOAuthConfig(c); err != nil {
+				return err
+			}
 		}
 
 		scope := oauthLoginScope
@@ -316,7 +289,6 @@ var oauthStatusCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(oauthCmd)
-	oauthCmd.AddCommand(oauthSetupCmd)
 	oauthCmd.AddCommand(oauthLoginCmd)
 	oauthCmd.AddCommand(oauthLogoutCmd)
 	oauthCmd.AddCommand(oauthStatusCmd)
