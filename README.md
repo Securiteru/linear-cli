@@ -113,35 +113,6 @@ linear doc-create --title "Architecture RFC" --team ENG --desc "Proposal for..."
 linear webhook-create --url https://example.com/webhook --team ENG
 ```
 
-## OAuth
-
-Two auth modes:
-
-1. **Personal API key** — `export LINEAR_API_KEY=lin_api_...` (simple, full account access)
-2. **OAuth** — scoped, revocable per-integration, actions attributable to an OAuth app
-
-OAuth setup:
-
-```sh
-# 1. Create an OAuth app at https://linear.app/settings/api/applications/new
-#    Redirect URL: http://localhost:8765/callback
-# 2. Authenticate:
-linear oauth login            # prompts for client_id/secret on first run, then opens browser
-linear oauth status           # verify
-linear oauth logout           # clear token locally
-```
-
-**Running on a remote / headless machine?** `linear oauth login` works there too:
-
-1. Run it on the remote box.
-2. Copy the printed `https://linear.app/oauth/authorize?...` URL into a browser on your laptop.
-3. Approve. Your browser will land on a `http://localhost:8765/callback?...` URL that won't load — expected.
-4. Copy that whole callback URL from the address bar and paste it back into the CLI prompt.
-
-Alternative for SSH: `ssh -L 8765:localhost:8765 your-box`, then the browser-callback path works as-is.
-
-If `LINEAR_API_KEY` is set, it takes precedence over the stored OAuth token.
-
 ## Agentic Use
 
 Designed for AI agents. Works with [psst](https://github.com/nicois/psst) for secret injection -- the API key never enters the agent's context.

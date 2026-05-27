@@ -31,19 +31,9 @@ func init() {
 		if optFormat != "" && optFormat != "json" && optFormat != "tsv" && optFormat != "id-only" {
 			return fmt.Errorf("invalid --format %q (valid: json, tsv, id-only)", optFormat)
 		}
-		// oauth subcommands handle their own auth (login bootstraps it)
-		if cmd.Parent() != nil && cmd.Parent().Name() == "oauth" {
-			return nil
+		if os.Getenv("LINEAR_API_KEY") == "" {
+			return fmt.Errorf("LINEAR_API_KEY not set")
 		}
-		if cmd.Name() == "oauth" {
-			return nil
-		}
-		if os.Getenv("LINEAR_API_KEY") != "" {
-			return nil
-		}
-		if hasStoredOAuthToken() {
-			return nil
-		}
-		return fmt.Errorf("not authenticated: set LINEAR_API_KEY or run 'linear oauth login'")
+		return nil
 	}
 }

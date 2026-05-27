@@ -7,44 +7,12 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 )
 
 const endpoint = "https://api.linear.app/graphql"
 
 var client = &http.Client{Timeout: 15 * time.Second}
-
-// authHeader returns (headerValue, isOAuth, error).
-// Precedence: LINEAR_API_KEY env > stored OAuth token > error.
-func authHeader() (string, bool, error) {
-	if key := os.Getenv("LINEAR_API_KEY"); key != "" {
-		return key, false, nil
-	}
-	if tok, err := readStoredOAuthToken(); err == nil && tok != "" {
-		return "Bearer " + tok, true, nil
-	}
-	return "", false, fmt.Errorf("no auth: set LINEAR_API_KEY or run 'linear oauth login'")
-}
-
-func readStoredOAuthToken() (string, error) {
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		return "", err
-	}
-	path := filepath.Join(dir, "linear-cli", "auth.json")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	var c struct {
-		AccessToken string `json:"access_token"`
-	}
-	if err := json.Unmarshal(data, &c); err != nil {
-		return "", err
-	}
-	return c.AccessToken, nil
-}
 
 type graphResponse struct {
 	Data   json.RawMessage `json:"data"`
@@ -57,9 +25,9 @@ type graphError struct {
 }
 
 func Query(query string, result any) error {
-	auth, _, err := authHeader()
-	if err != nil {
-		return err
+	key := os.Getenv("LINEAR_API_KEY")
+	if key == "" {
+		return fmt.Errorf("LINEAR_API_KEY not set")
 	}
 
 	body := map[string]string{"query": query}
@@ -73,7 +41,7 @@ func Query(query string, result any) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", auth)
+	req.Header.Set("Authorization", key)
 
 	resp, err := client.Do(req)
 	if err != nil {
