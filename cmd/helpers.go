@@ -5,10 +5,50 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/Securiteru/linear-cli/api"
+	"github.com/gluonfield/linear-cli/api"
 )
 
 var linearURLRe = regexp.MustCompile(`linear\.app/[^/]+/issue/([A-Za-z]+-\d+)`)
+var uuidRe = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+func resolveProjectID(input string) (string, error) {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return "", fmt.Errorf("project is empty")
+	}
+	if uuidRe.MatchString(input) {
+		return input, nil
+	}
+	q := fmt.Sprintf(`query { projects(filter: { name: { containsIgnoreCase: "%s" } }, first: 50) { nodes { id name } } }`, escapeGraphQL(input))
+	var res struct {
+		Projects struct {
+			Nodes []struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"nodes"`
+		} `json:"projects"`
+	}
+	if err := api.Query(q, &res); err != nil {
+		return "", err
+	}
+	nodes := res.Projects.Nodes
+	for _, n := range nodes {
+		if strings.EqualFold(n.Name, input) {
+			return n.ID, nil
+		}
+	}
+	if len(nodes) == 0 {
+		return "", fmt.Errorf("project %q not found", input)
+	}
+	if len(nodes) == 1 {
+		return nodes[0].ID, nil
+	}
+	names := make([]string, len(nodes))
+	for i, n := range nodes {
+		names[i] = n.Name
+	}
+	return "", fmt.Errorf("project %q matched multiple: %s", input, strings.Join(names, ", "))
+}
 
 func parseIssueIdentifier(input string) string {
 	input = strings.TrimSpace(input)

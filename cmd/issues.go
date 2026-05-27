@@ -6,7 +6,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/Securiteru/linear-cli/api"
+	"github.com/gluonfield/linear-cli/api"
 	"github.com/spf13/cobra"
 )
 
@@ -15,6 +15,7 @@ var (
 	teamFilter     string
 	statusFilter   string
 	assigneeFilter string
+	projectFilter  string
 	issueLimit     int
 )
 
@@ -45,6 +46,13 @@ var listCmd = &cobra.Command{
 				filterParts = append(filterParts, fmt.Sprintf(`assignee: { name: { eq: "%s" } }`, escapeGraphQL(assigneeFilter)))
 			}
 		}
+		if projectFilter != "" {
+			projectID, err := resolveProjectID(projectFilter)
+			if err != nil {
+				return err
+			}
+			filterParts = append(filterParts, fmt.Sprintf(`project: { id: { eq: "%s" } }`, projectID))
+		}
 
 		filter := ""
 		if len(filterParts) > 0 {
@@ -58,7 +66,7 @@ var listCmd = &cobra.Command{
 
 		combined := strings.TrimSpace(strings.Join([]string{search, filter}, ", "))
 
-		q := fmt.Sprintf(`query { issues(%s first: %d) { nodes { id identifier title state { name } assignee { name } priority labels { nodes { name } } } } }`, combined, limit)
+		q := fmt.Sprintf(`query { issues(%s first: %d) { nodes { id identifier title state { name } assignee { name } priority labels { nodes { name } } project { id name } } } }`, combined, limit)
 
 		var result struct {
 			Issues struct {
@@ -78,6 +86,10 @@ var listCmd = &cobra.Command{
 							Name string `json:"name"`
 						} `json:"nodes"`
 					} `json:"labels"`
+					Project *struct {
+						ID   string `json:"id"`
+						Name string `json:"name"`
+					} `json:"project"`
 				} `json:"nodes"`
 			} `json:"issues"`
 		}
@@ -148,6 +160,7 @@ func init() {
 	listCmd.Flags().StringVarP(&teamFilter, "team", "t", "", "filter by team key (e.g. ADI)")
 	listCmd.Flags().StringVarP(&statusFilter, "status", "S", "", "filter by status name")
 	listCmd.Flags().StringVarP(&assigneeFilter, "assignee", "a", "", "filter by assignee name or 'me'")
+	listCmd.Flags().StringVarP(&projectFilter, "project", "P", "", "filter by project name or UUID")
 	listCmd.Flags().IntVarP(&issueLimit, "limit", "n", 20, "max results")
 	listCmd.Flags().StringVar(&optFields, "fields", "", "comma-separated fields (e.g. identifier,title,state.name)")
 }

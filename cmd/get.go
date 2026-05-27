@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/Securiteru/linear-cli/api"
+	"github.com/gluonfield/linear-cli/api"
 )
 
 var getCmd = &cobra.Command{
@@ -13,7 +13,7 @@ var getCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		id := parseIssueIdentifier(args[0])
-		q := fmt.Sprintf(`query { issue(id: "%s") { id identifier title description state { name } assignee { name } priority labels { nodes { name } } team { key name } url createdAt updatedAt } }`, id)
+		q := fmt.Sprintf(`query { issue(id: "%s") { id identifier title description state { name } assignee { name } priority labels { nodes { name } } team { key name } project { id name } url createdAt updatedAt comments(first: 100) { nodes { id body user { name } createdAt updatedAt resolvedAt } } } }`, id)
 
 		var result struct {
 			Issue *struct {
@@ -37,9 +37,25 @@ var getCmd = &cobra.Command{
 					Key  string `json:"key"`
 					Name string `json:"name"`
 				} `json:"team"`
+				Project *struct {
+					ID   string `json:"id"`
+					Name string `json:"name"`
+				} `json:"project"`
 				URL       string `json:"url"`
 				CreatedAt string `json:"createdAt"`
 				UpdatedAt string `json:"updatedAt"`
+				Comments  *struct {
+					Nodes []struct {
+						ID    string `json:"id"`
+						Body  string `json:"body"`
+						User  *struct {
+							Name string `json:"name"`
+						} `json:"user"`
+						CreatedAt  string  `json:"createdAt"`
+						UpdatedAt  string  `json:"updatedAt"`
+						ResolvedAt *string `json:"resolvedAt"`
+					} `json:"nodes"`
+				} `json:"comments"`
 			} `json:"issue"`
 		}
 
@@ -82,6 +98,9 @@ var getCmd = &cobra.Command{
 		if issue.Team != nil {
 			fmt.Printf("Team: %s (%s)\n", issue.Team.Name, issue.Team.Key)
 		}
+		if issue.Project != nil {
+			fmt.Printf("Project: %s\n", issue.Project.Name)
+		}
 		state := "-"
 		if issue.State != nil {
 			state = issue.State.Name
@@ -107,6 +126,24 @@ var getCmd = &cobra.Command{
 		fmt.Printf("Updated: %s\n", issue.UpdatedAt)
 		if issue.Description != "" {
 			fmt.Printf("\n%s\n", issue.Description)
+		}
+		if issue.Comments != nil && len(issue.Comments.Nodes) > 0 {
+			fmt.Printf("\n--- Comments (%d) ---\n", len(issue.Comments.Nodes))
+			for _, c := range issue.Comments.Nodes {
+				user := "unknown"
+				if c.User != nil {
+					user = c.User.Name
+				}
+				resolved := ""
+				if c.ResolvedAt != nil {
+					resolved = " [resolved]"
+				}
+				date := c.CreatedAt
+				if len(date) >= 10 {
+					date = date[:10]
+				}
+				fmt.Printf("\n[%s] %s%s\n%s\n", date, user, resolved, c.Body)
+			}
 		}
 		return nil
 	},
