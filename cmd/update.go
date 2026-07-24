@@ -59,60 +59,69 @@ var updateCmd = &cobra.Command{
 			fields = append(fields, fmt.Sprintf(`dueDate: "%s"`, updateDueDate))
 		}
 
-		if len(fields) == 0 {
-			return fmt.Errorf("no updates specified (use --title, --desc, --status, --assignee, --priority)")
+		if len(fields) == 0 && len(updateLabels) == 0 {
+			return fmt.Errorf("no updates specified (use --title, --desc, --status, --assignee, --priority, --labels)")
 		}
 
-		q := fmt.Sprintf(`mutation { issueUpdate(id: "%s", input: { %s }) { success issue { id identifier title state { name } assignee { name } priority } } }`, id, strings.Join(fields, ", "))
+		issueID := id
+		issueIdentifier := args[0]
+		issueTitle := ""
 
-		var result struct {
-			IssueUpdate struct {
-				Success bool `json:"success"`
-				Issue   struct {
-					ID         string `json:"id"`
-					Identifier string `json:"identifier"`
-					Title      string `json:"title"`
-					State      *struct {
-						Name string `json:"name"`
-					} `json:"state"`
-					Assignee *struct {
-						Name string `json:"name"`
-					} `json:"assignee"`
-					Priority int `json:"priority"`
-				} `json:"issue"`
-			} `json:"issueUpdate"`
+		if len(fields) > 0 {
+			q := fmt.Sprintf(`mutation { issueUpdate(id: "%s", input: { %s }) { success issue { id identifier title state { name } assignee { name } priority } } }`, id, strings.Join(fields, ", "))
+
+			var result struct {
+				IssueUpdate struct {
+					Success bool `json:"success"`
+					Issue   struct {
+						ID         string `json:"id"`
+						Identifier string `json:"identifier"`
+						Title      string `json:"title"`
+						State      *struct {
+							Name string `json:"name"`
+						} `json:"state"`
+						Assignee *struct {
+							Name string `json:"name"`
+						} `json:"assignee"`
+						Priority int `json:"priority"`
+					} `json:"issue"`
+				} `json:"issueUpdate"`
+			}
+
+			if err := api.Query(q, &result); err != nil {
+				return err
+			}
+			if !result.IssueUpdate.Success {
+				return fmt.Errorf("update failed")
+			}
+			issue := result.IssueUpdate.Issue
+			issueID = issue.ID
+			issueIdentifier = issue.Identifier
+			issueTitle = issue.Title
 		}
 
-		if err := api.Query(q, &result); err != nil {
-			return err
-		}
-
-		if !result.IssueUpdate.Success {
-			return fmt.Errorf("update failed")
-		}
-
-		issue := result.IssueUpdate.Issue
-
-		switch effectiveFormat() {
-		case "json":
-			return writeJSON(issue)
-		case "id-only":
-			fmt.Println(issue.Identifier)
-			return nil
-		}
-		if optQuiet {
-			fmt.Println(issue.Identifier)
-			return nil
-		}
-
-		fmt.Printf("Updated: %s - %s\n", issue.Identifier, issue.Title)
-
-		if updateLabels != nil {
-			if err := updateIssueLabels(id, updateLabels); err != nil {
+		if len(updateLabels) > 0 {
+			if err := updateIssueLabels(issueID, updateLabels); err != nil {
 				return err
 			}
 		}
 
+		switch effectiveFormat() {
+		case "json":
+			return writeJSON(map[string]string{"id": issueID, "identifier": issueIdentifier})
+		case "id-only":
+			fmt.Println(issueIdentifier)
+			return nil
+		}
+		if optQuiet {
+			fmt.Println(issueIdentifier)
+			return nil
+		}
+		if issueTitle != "" {
+			fmt.Printf("Updated: %s - %s\n", issueIdentifier, issueTitle)
+		} else {
+			fmt.Printf("Updated: %s (labels)\n", issueIdentifier)
+		}
 		return nil
 	},
 }
@@ -164,7 +173,7 @@ func resolveAssigneeID(name string) (string, error) {
 
 func updateIssueLabels(issueID string, labels []string) error {
 	for _, labelName := range labels {
-		q := fmt.Sprintf(`mutation { issueAddLabel(input: { issueId: "%s", labelId: "%s" }) { success } }`, issueID, labelName)
+		q := fmt.Sprintf(`mutation { issueAddLabel(id: "%s", labelId: "%s") { success } }`, issueID, labelName)
 		var res struct {
 			IssueAddLabel struct {
 				Success bool `json:"success"`

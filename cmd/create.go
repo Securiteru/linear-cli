@@ -13,6 +13,7 @@ var (
 	createTeamKey     string
 	createPriority    int
 	createStatusLabel string
+	createLabels      []string
 )
 
 var createCmd = &cobra.Command{
@@ -57,6 +58,12 @@ var createCmd = &cobra.Command{
 		}
 
 		issue := result.IssueCreate.Issue
+
+		if len(createLabels) > 0 {
+			if err := updateIssueLabels(issue.ID, createLabels); err != nil {
+				return fmt.Errorf("issue created (%s) but failed to add labels: %w", issue.Identifier, err)
+			}
+		}
 
 		switch effectiveFormat() {
 		case "json":
@@ -125,4 +132,5 @@ func init() {
 	createCmd.Flags().StringVarP(&createTeamKey, "team", "T", "", "team key (e.g. ADI) (required)")
 	createCmd.Flags().IntVarP(&createPriority, "priority", "p", 0, "priority (1=urgent 2=high 3=medium 4=low)")
 	createCmd.Flags().StringVar(&createStatusLabel, "status", "", "status name")
+	createCmd.Flags().StringSliceVar(&createLabels, "labels", nil, "add labels by ID (repeatable or comma-separated)")
 }
